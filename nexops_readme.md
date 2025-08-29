@@ -2,7 +2,7 @@
 
 ![Made with](https://img.shields.io/badge/Made%20with-HTML%20%2B%20Tailwind%20%2B%20JS%20%2B%20Three.js-7C4DFF?style=for-the-badge)
 ![No build step](https://img.shields.io/badge/Build-None%20\(Play%20CDN\)-10B981?style=for-the-badge)
-![License](https://img.shields.io/badge/license-MIT-222?style=for-the-badge)
+
 
 A modern, single‑file demo site for an **operations/supply‑chain consulting** brand. It focuses on *useful* interactions (not just visuals): ROI calculator with CSV export, cycle‑time reduction visual with recommendations, a **Supply Chain Risk Monitor** (Three.js), a **floating chat assistant**, testimonials, “Why Us” proof‑point accordions, and a persistent **Light/Dark** mode toggle.
 
@@ -233,11 +233,7 @@ const fmt = (n) => new Intl.NumberFormat('en-IN').format(Math.round(n));
 
 ---
 
-## 📄 License
 
-MIT © \[Your Name]
-
----
 
 ### Credits / Inspiration
 
