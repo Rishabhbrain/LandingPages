@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NexOps Consulting — Operate Smarter. Scale Faster.</title>
+  <meta name="description" content="Business consulting across operations, workforce, procurement, supply chain, and AI integrations. Modern UI with calculators, charts, and micro‑interactions." />
+
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Tailwind (Play CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'Inter', 'ui-sans-serif', 'system-ui'],
+          },
+          colors: {
+            ink: {
+              900: '#0b0c10', 800: '#111217', 700: '#161821', 600: '#1c1f2b', 500: '#222637'
+            },
+            brand: {
+              DEFAULT: '#7C4DFF', // electric violet
+              2: '#22D3EE',       // cyan accent
+              3: '#F59E0B',       // amber accent
+              4: '#10B981'        // emerald
+            }
+          },
+          boxShadow: {
+            glow: '0 0 0 1px rgba(124,77,255,.35), 0 0 40px 10px rgba(124,77,255,.15)'
+          },
+          keyframes: {
+            floaty: {
+              '0%, 100%': { transform: 'translateY(0px) rotate(0.2deg)' },
+              '50%': { transform: 'translateY(-6px) rotate(-0.2deg)' }
+            },
+            blob: {
+              '0%': { borderRadius: '42% 58% 39% 61% / 53% 35% 65% 47%' },
+              '33%': { borderRadius: '58% 42% 61% 39% / 35% 65% 47% 53%' },
+              '66%': { borderRadius: '45% 55% 50% 50% / 40% 60% 60% 40%' },
+              '100%': { borderRadius: '42% 58% 39% 61% / 53% 35% 65% 47%' }
+            },
+            shimmer: {
+              '0%': { backgroundPosition: '-200% 0' },
+              '100%': { backgroundPosition: '200% 0' }
+            }
+          },
+          animation: {
+            floaty: 'floaty 6s ease-in-out infinite',
+            blob: 'blob 18s ease-in-out infinite',
+            shimmer: 'shimmer 2.4s linear infinite'
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Three.js -->
+  <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+
+  <style>
+    /* Subtle selection + scroll */
+    ::selection { background: rgba(124,77,255,.25); }
+    html, body { scroll-behavior: smooth; }
+
+    /* Morph gradient background shells */
+    .morph-shell { filter: blur(36px); opacity:.55; mix-blend-mode: screen; }
+
+    /* Magnetic buttons */
+    .magnetic {
+      --tx: 0px; --ty: 0px; transform: translate(var(--tx), var(--ty)); transition: transform .08s ease-out;
+    }
+    .noise {
+      pointer-events:none; position:fixed; inset:0; opacity:.07; background-image:url('data:image/svg+xml;utf8,\
+      <svg xmlns="http://www.w3.org/2000/svg" width="300" height="300">\
+      <filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/></filter>\
+      <rect width="100%" height="100%" filter="url(%23n)" opacity=".65"/></svg>');
+      background-size: 300px 300px;
+    }
+    /* Radial gauge (CSS driven) */
+    .gauge {
+      --p: 62; /* percent */
+      --bg: #0f1222; --fg: #7C4DFF; --cut: #0b0c10;
+      width: 160px; height: 160px; border-radius: 999px; position: relative;
+      background: conic-gradient(var(--fg) calc(var(--p) * 1%), #222 0);
+      box-shadow: 0 0 0 2px #272b3f inset, 0 10px 30px rgba(0,0,0,.25);
+    }
+    .gauge:after{
+      content:""; position:absolute; inset:14px; background:var(--cut); border-radius:999px;
+      box-shadow: 0 0 0 1px #2f3350 inset;
+    }
+    .gauge span{
+      position:absolute; inset:0; display:grid; place-items:center; font-weight:700; color:#e5e7eb;
+    }
+    /* Sparkline canvas holder */
+    .sparkline{ width:160px; height:44px; }
+  </style>
+</head>
+
+<body class="font-sans bg-ink-900 text-white antialiased selection:bg-brand/20">
+  <div class="noise"></div>
+
+  <!-- Page Loader (morphed) -->
+  <div id="loader" class="fixed inset-0 z-[70] grid place-items-center bg-ink-900">
+    <div class="relative">
+      <div class="w-48 h-48 bg-brand/50 animate-blob morph-shell"></div>
+      <div class="absolute -inset-6 w-60 h-60 bg-brand-2/40 animate-blob [animation-delay:6s] morph-shell"></div>
+      <div class="absolute -inset-12 w-72 h-72 bg-brand-3/40 animate-blob [animation-delay:12s] morph-shell"></div>
+      <div class="absolute inset-0 grid place-items-center">
+        <div class="text-center">
+          <div class="text-sm uppercase tracking-[.35em] text-white/70 mb-2">initializing</div>
+          <div class="w-56 h-2 rounded-full overflow-hidden bg-white/10">
+            <div class="h-full w-2/3 animate-shimmer bg-gradient-to-r from-transparent via-white/70 to-transparent bg-[length:200%_100%]"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Nav -->
+  <header class="fixed top-0 z-50 w-full backdrop-blur supports-[backdrop-filter]:bg-ink-900/50 border-b border-white/5">
+    <div class="mx-auto max-w-7xl px-5 py-3 flex items-center justify-between">
+      <a href="#home" class="group flex items-center gap-3">
+        <svg width="28" height="28" viewBox="0 0 24 24" class="shrink-0">
+          <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#7C4DFF"/><stop offset="100%" stop-color="#22D3EE"/></linearGradient></defs>
+          <path fill="url(#g)" d="M12 2c5.5 0 10 4.5 10 10 0 4.4-2.8 8.2-6.8 9.5-.5.2-.9-.3-.8-.8.2-.9.3-1.9.3-2.8 0-3.1-1.7-4.5-3.9-4.5-2.4 0-3.8 1.6-3.8 3.5 0 1 .4 2.1.9 2.8.3.4 0 1-.5.9C4.6 19.9 2 16.3 2 12 2 6.5 6.5 2 12 2z"/>
+        </svg>
+        <span class="text-sm tracking-widest uppercase text-white/80">NexOps Consulting</span>
+      </a>
+      <nav class="hidden md:flex items-center gap-7 text-sm text-white/70">
+        <a href="#services" class="hover:text-white">Services</a>
+        <a href="#calculators" class="hover:text-white">Calculators</a>
+        <a href="#standout" class="hover:text-white">Why Us</a>
+        <a href="#testimonials" class="hover:text-white">Testimonials</a>
+        <a href="#contact" class="hover:text-white">Contact</a>
+      </nav>
+      <a href="#contact" class="magnetic inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm hover:shadow-glow transition">
+        <span>Book a Discovery Call</span>
+        <svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentColor" d="M13 5l7 7-7 7v-4H4v-6h9V5z"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section id="home" class="relative pt-28 md:pt-32">
+    <div class="absolute -top-24 -left-24 w-[38rem] h-[38rem] rounded-full bg-brand/30 blur-[120px]"></div>
+    <div class="absolute -bottom-24 -right-10 w-[32rem] h-[32rem] rounded-full bg-brand-2/20 blur-[120px]"></div>
+
+    <div class="mx-auto max-w-7xl px-5 grid md:grid-cols-[1.2fr,1fr] gap-12 items-center">
+      <div>
+        <div class="inline-flex items-center gap-2 rounded-full border border-white/10 px-3 py-1 text-xs text-white/70 mb-5">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span>End‑to‑end Consulting • Ops • Supply Chain • AI</span>
+        </div>
+        <h1 class="text-4xl md:text-6xl font-extrabold leading-[1.05] tracking-tight">
+          Operate <span class="bg-clip-text text-transparent bg-gradient-to-r from-brand to-brand-2">smarter</span>.<br/>
+          Scale <span class="underline decoration-brand/40">faster</span>.
+        </h1>
+        <p class="mt-5 text-lg text-white/70 max-w-2xl">
+          We redesign processes, upgrade procurement and supply chains, and weave AI into your workflows—so you ship faster, waste less, and grow confidently.
+        </p>
+        <div class="mt-7 flex flex-wrap items-center gap-4">
+          <a href="#calculators" class="magnetic inline-flex items-center gap-2 rounded-full bg-white text-ink-900 px-5 py-3 text-sm font-semibold hover:opacity-95">
+            Try ROI Calculator
+            <svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentColor" d="M13 5l7 7-7 7v-4H4v-6h9V5z"/></svg>
+          </a>
+          <a href="#services" class="magnetic inline-flex items-center gap-2 rounded-full border border-white/10 px-5 py-3 text-sm">
+            Explore Services
+            <svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentColor" d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </a>
+        </div>
+        <div class="mt-10 flex items-center gap-8 text-white/60">
+          <div class="group">
+            <div class="text-2xl font-bold text-white">$210M+</div>
+            <div class="text-xs">value unlocked</div>
+          </div>
+          <div class="group">
+            <div class="text-2xl font-bold text-white">23%</div>
+            <div class="text-xs">avg cycle‑time cut</div>
+          </div>
+          <div class="group">
+            <div class="text-2xl font-bold text-white">38</div>
+            <div class="text-xs">industries served</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Three.js canvas -->
+      <div class="relative h-[420px] md:h-[520px] rounded-3xl overflow-hidden border border-white/10">
+        <canvas id="globe" class="absolute inset-0"></canvas>
+        <div class="absolute bottom-3 left-3 text-[10px] uppercase tracking-widest text-white/60 bg-black/30 rounded-full px-2 py-1">
+          live network preview
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Bento / Morph Section: What we do (non‑symmetric) -->
+  <section id="services" class="relative py-24">
+    <div class="absolute top-0 right-0 w-64 h-64 bg-brand-3/20 rounded-full blur-[100px]"></div>
+    <div class="mx-auto max-w-7xl px-5">
+      <div class="mb-10 max-w-3xl">
+        <h2 class="text-3xl md:text-5xl font-bold leading-tight">Services that bend <span class="bg-clip-text text-transparent bg-gradient-to-r from-brand to-brand-2">with your ops</span></h2>
+        <p class="mt-3 text-white/70">Irregular, bento‑style layout avoids cookie‑cutter cards. Hover and explore.</p>
+      </div>
+
+      <div class="grid gap-5 [grid-template-columns:repeat(12,minmax(0,1fr))] auto-rows-[180px]">
+        <!-- Ops Redesign (span 7x2) -->
+        <div class="group relative col-span-12 md:col-span-7 row-span-2 rounded-3xl border border-white/10 overflow-hidden bg-gradient-to-br from-ink-800 to-ink-700">
+          <div class="absolute -top-24 -left-24 w-[28rem] h-[28rem] bg-brand/25 animate-blob morph-shell"></div>
+          <div class="absolute inset-0 p-8 flex flex-col justify-between">
+            <div>
+              <h3 class="text-2xl md:text-3xl font-semibold">Operations Redesign</h3>
+              <p class="mt-2 text-white/70 max-w-xl">Value‑stream mapping, bottleneck kill‑switches, S&OP alignment, and automation roadmaps.
+              </p>
+            </div>
+            <div class="flex items-center gap-6 *:text-white/70 *:text-sm">
+              <span class="inline-flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2L3 6v6c0 5 3.8 9.7 9 10 5.2-.3 9-5 9-10V6l-9-4z"/></svg>OEE ↑</span>
+              <span class="inline-flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentColor" d="M3 12h18M3 7h18M3 17h18"/></svg>Lean Tooling</span>
+              <span class="inline-flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentColor" d="M12 3l4 8H8l4-8zm0 18l-4-8h8l-4 8z"/></svg>S&OP</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Supply Chain (span 5x1) -->
+        <div class="group relative col-span-12 md:col-span-5 row-span-1 rounded-3xl border border-white/10 overflow-hidden bg-gradient-to-br from-ink-800 to-ink-700">
+          <div class="absolute -bottom-24 -right-24 w-[20rem] h-[20rem] bg-brand-2/25 animate-blob morph-shell"></div>
+          <div class="absolute inset-0 p-8">
+            <h3 class="text-2xl font-semibold">Supply Chain & Logistics</h3>
+            <p class="mt-2 text-white/70 max-w-md">Network design, multi‑echelon inventory, last‑mile orchestration, and control‑tower design.</p>
+          </div>
+        </div>
+
+        <!-- Procurement (span 4x1) -->
+        <div class="group relative col-span-12 md:col-span-4 row-span-1 rounded-3xl border border-white/10 overflow-hidden bg-gradient-to-br from-ink-800 to-ink-700 rotate-1">
+          <div class="absolute -top-20 -right-20 w-64 h-64 bg-brand-4/25 animate-blob morph-shell"></div>
+          <div class="absolute inset-0 p-8">
+            <h3 class="text-2xl font-semibold">Procurement</h3>
+            <p class="mt-2 text-white/70">Should‑costing, vendor consolidation, SRM, and spend analytics.</p>
+          </div>
+        </div>
+
+        <!-- Workforce (span 4x1) -->
+        <div class="group relative col-span-12 md:col-span-4 row-span-1 rounded-3xl border border-white/10 overflow-hidden bg-gradient-to-br from-ink-800 to-ink-700 -rotate-1">
+          <div class="absolute -bottom-24 -left-24 w-56 h-56 bg-brand-3/25 animate-blob morph-shell"></div>
+          <div class="absolute inset-0 p-8">
+            <h3 class="text-2xl font-semibold">Workforce & Productivity</h3>
+            <p class="mt-2 text-white/70">Scheduling, training design, incentive models, and skill‑matrix rollouts.</p>
+          </div>
+        </div>
+
+        <!-- AI Integrations (span 4x2) -->
+        <div class="group relative col-span-12 md:col-span-4 row-span-2 rounded-3xl border border-white/10 overflow-hidden bg-gradient-to-br from-ink-800 to-ink-700">
+          <div class="absolute -top-24 -left-24 w-64 h-64 bg-brand/25 animate-blob morph-shell"></div>
+          <div class="absolute inset-0 p-8 flex flex-col justify-between">
+            <div>
+              <h3 class="text-2xl md:text-3xl font-semibold">AI & Tech Integrations</h3>
+              <p class="mt-2 text-white/70">RPA, forecasting, copilots, quality vision systems, and decision dashboards.</p>
+            </div>
+            <ul class="text-white/70 text-sm grid gap-2 list-disc list-inside">
+              <li>Copilot for Ops SOPs</li>
+              <li>Forecasting (demand / lead‑time)</li>
+              <li>Supplier scorecards & anomaly alerts</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Data & Analytics (span 8x1) -->
+        <div class="group relative col-span-12 md:col-span-8 row-span-1 rounded-3xl border border-white/10 overflow-hidden bg-gradient-to-br from-ink-800 to-ink-700">
+          <div class="absolute -bottom-20 -right-20 w-80 h-80 bg-brand-2/25 animate-blob morph-shell"></div>
+          <div class="absolute inset-0 p-8">
+            <h3 class="text-2xl font-semibold">Data & Analytics</h3>
+            <p class="mt-2 text-white/70 max-w-2xl">From messy exports to tidy insights—data modelling, KPI trees, and visual layers that drive action.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Calculators / Counters / Efficiency Charts -->
+  <section id="calculators" class="relative py-24">
+    <div class="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
+    <div class="mx-auto max-w-7xl px-5">
+      <div class="mb-12 grid md:grid-cols-[1.2fr,1fr] gap-10 items-end">
+        <div>
+          <h2 class="text-3xl md:text-5xl font-bold leading-tight">Quantify impact in minutes</h2>
+          <p class="mt-3 text-white/70">Run scenarios, see payback, and visualize cycle‑time improvements. No spreadsheets required.</p>
+        </div>
+        <!-- Counters -->
+        <div class="grid grid-cols-3 gap-5">
+          <div class="rounded-2xl border border-white/10 p-5 bg-white/5/0 [background:linear-gradient(135deg,rgba(255,255,255,.06),rgba(255,255,255,0)_40%)]">
+            <div class="text-xs text-white/60">Clients</div>
+            <div class="mt-1 text-3xl font-extrabold" data-counter="128">0</div>
+          </div>
+          <div class="rounded-2xl border border-white/10 p-5 bg-white/5/0 [background:linear-gradient(135deg,rgba(255,255,255,.06),rgba(255,255,255,0)_40%)]">
+            <div class="text-xs text-white/60">Avg Cost Saved</div>
+            <div class="mt-1 text-3xl font-extrabold" data-counter="23">0</div>
+            <div class="text-xs text-white/60">%</div>
+          </div>
+          <div class="rounded-2xl border border-white/10 p-5 bg-white/5/0 [background:linear-gradient(135deg,rgba(255,255,255,.06),rgba(255,255,255,0)_40%)]">
+            <div class="text-xs text-white/60">Hours Automated</div>
+            <div class="mt-1 text-3xl font-extrabold" data-counter="48000">0</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid lg:grid-cols-2 gap-10">
+        <!-- ROI / Payback Calculator -->
+        <div class="rounded-3xl border border-white/10 overflow-hidden relative">
+          <div class="absolute -top-20 -left-16 w-80 h-80 bg-brand/25 animate-blob morph-shell"></div>
+          <div class="relative p-8">
+            <h3 class="text-xl font-semibold">AI & Process Improvement ROI</h3>
+            <div class="mt-6 grid md:grid-cols-2 gap-6 text-sm">
+              <label class="grid gap-2">
+                <span class="text-white/70">Baseline Monthly Cost (₹)</span>
+                <input id="baselineCost" type="number" class="bg-ink-800 border border-white/10 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-brand/50" placeholder="500000" value="500000" />
+              </label>
+              <label class="grid gap-2">
+                <span class="text-white/70">Expected Improvement (%)</span>
+                <input id="improvement" type="number" class="bg-ink-800 border border-white/10 rounded-xl px-4 py-2" placeholder="18" value="18" />
+              </label>
+              <label class="grid gap-2">
+                <span class="text-white/70">Project Cost (₹)</span>
+                <input id="projectCost" type="number" class="bg-ink-800 border border-white/10 rounded-xl px-4 py-2" placeholder="800000" value="800000" />
+              </label>
+              <label class="grid gap-2">
+                <span class="text-white/70">Months to Realize</span>
+                <input id="months" type="number" class="bg-ink-800 border border-white/10 rounded-xl px-4 py-2" placeholder="6" value="6" />
+              </label>
+            </div>
+            <div class="mt-6 flex flex-wrap items-center gap-8">
+              <button id="calcBtn" class="magnetic inline-flex items-center gap-2 rounded-full bg-white text-ink-900 px-5 py-2.5 text-sm font-semibold">Calculate</button>
+              <div class="gauge" id="roiGauge"><span id="gaugeLabel">62%</span></div>
+              <div class="text-sm text-white/80 min-w-[220px]">
+                <div><span class="text-white/60">Monthly Savings:</span> <span id="monthlySavings" class="font-semibold">—</span></div>
+                <div><span class="text-white/60">Annualized ROI:</span> <span id="annualRoi" class="font-semibold">—</span></div>
+                <div><span class="text-white/60">Payback (months):</span> <span id="payback" class="font-semibold">—</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Efficiency "Before vs After" (bars) + Cycle‑time chart -->
+        <div class="rounded-3xl border border-white/10 overflow-hidden relative">
+          <div class="absolute -bottom-20 -right-16 w-80 h-80 bg-brand-2/25 animate-blob morph-shell"></div>
+          <div class="relative p-8">
+            <h3 class="text-xl font-semibold">Cycle‑Time Reduction Visual</h3>
+            <p class="text-sm text-white/70">Enter current and target cycle‑time. Bars and delta update live.</p>
+            <div class="mt-4 grid md:grid-cols-3 gap-4 text-sm">
+              <label class="grid gap-2">
+                <span class="text-white/70">Current (hours)</span>
+                <input id="ctCurrent" type="number" class="bg-ink-800 border border-white/10 rounded-xl px-4 py-2" placeholder="40" value="40" />
+              </label>
+              <label class="grid gap-2">
+                <span class="text-white/70">Target (hours)</span>
+                <input id="ctTarget" type="number" class="bg-ink-800 border border-white/10 rounded-xl px-4 py-2" placeholder="28" value="28" />
+              </label>
+              <div class="grid place-items-end">
+                <button id="ctBtn" class="magnetic inline-flex items-center gap-2 rounded-full border border-white/10 px-5 py-2.5 text-sm">Update</button>
+              </div>
+            </div>
+
+            <div class="mt-6 grid grid-cols-2 gap-6 items-end">
+              <div class="grid gap-3">
+                <div class="text-xs text-white/70">Current</div>
+                <div class="h-40 bg-ink-800/80 rounded-2xl relative overflow-hidden">
+                  <div id="barCurrent" class="absolute bottom-0 left-0 w-full bg-white/80" style="height:70%"></div>
+                </div>
+              </div>
+              <div class="grid gap-3">
+                <div class="text-xs text-white/70">Target</div>
+                <div class="h-40 bg-ink-800/80 rounded-2xl relative overflow-hidden">
+                  <div id="barTarget" class="absolute bottom-0 left-0 w-full bg-brand/80" style="height:40%"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-5 text-sm text-white/80">
+              <span class="text-white/60">Reduction:</span> <span id="ctDelta" class="font-semibold">—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Simple in‑page Analytics preview (front‑end only) -->
+      <div id="analytics" class="mt-12 rounded-3xl border border-white/10 p-8 grid md:grid-cols-4 gap-6">
+        <div class="col-span-2">
+          <h3 class="text-xl font-semibold">Engagement Analytics (local)</h3>
+          <p class="text-sm text-white/70">This demo tracks CTA clicks, calculator runs, and session time. Replace with GA4 when deploying.</p>
+          <div class="mt-5 grid grid-cols-3 gap-5 text-sm">
+            <div class="rounded-xl border border-white/10 p-4">
+              <div class="text-white/60">CTA Clicks</div>
+              <div id="mCtaClicks" class="text-2xl font-extrabold">0</div>
+            </div>
+            <div class="rounded-xl border border-white/10 p-4">
+              <div class="text-white/60">Calcs Run</div>
+              <div id="mCalcs" class="text-2xl font-extrabold">0</div>
+            </div>
+            <div class="rounded-xl border border-white/10 p-4">
+              <div class="text-white/60">Session (s)</div>
+              <div id="mSecs" class="text-2xl font-extrabold">0</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-span-2">
+          <canvas id="spark" width="320" height="88" class="sparkline rounded-xl border border-white/10 bg-ink-800/60"></canvas>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- What makes us stand out -->
+  <section id="standout" class="relative py-24">
+    <div class="absolute -top-24 left-1/2 -translate-x-1/2 w-[44rem] h-[44rem] bg-brand/20 blur-[140px]"></div>
+    <div class="mx-auto max-w-7xl px-5">
+      <h2 class="text-3xl md:text-5xl font-bold leading-tight">What makes us <span class="bg-clip-text text-transparent bg-gradient-to-r from-brand-2 to-brand-3">stand out</span></h2>
+      <p class="mt-3 text-white/70 max-w-2xl">We fuse operators’ instincts with data science and design systems that people actually use.</p>
+
+      <div class="mt-10 grid gap-3 [grid-template-columns:repeat(16,minmax(0,1fr))]">
+        <!-- Asymmetric chips cloud -->
+        <div class="col-span-6 md:col-span-4">
+          <div class="inline-flex items-center gap-2 rounded-full px-4 py-2 bg-white/10 border border-white/10 backdrop-blur hover:scale-[1.02] transition">Outcome‑first Playbooks</div>
+        </div>
+        <div class="col-span-10 md:col-span-6">
+          <div class="inline-flex items-center gap-2 rounded-full px-4 py-2 bg-white/10 border border-white/10 backdrop-blur">Certified Lean / Six Sigma</div>
+        </div>
+        <div class="col-span-8 md:col-span-5">
+          <div class="inline-flex items-center gap-2 rounded-full px-4 py-2 bg-white/10 border border-white/10 backdrop-blur">Proven AI Integrations (RPA, Copilots)</div>
+        </div>
+        <div class="col-span-8 md:col-span-5">
+          <div class="inline-flex items-center gap-2 rounded-full px-4 py-2 bg-white/10 border border-white/10 backdrop-blur">Multi‑industry Benchmarks</div>
+        </div>
+        <div class="col-span-16 md:col-span-7">
+          <div class="inline-flex items-center gap-2 rounded-full px-4 py-2 bg-white/10 border border-white/10 backdrop-blur">Rapid Pilots → Scale Pathways</div>
+        </div>
+        <div class="col-span-10 md:col-span-6">
+          <div class="inline-flex items-center gap-2 rounded-full px-4 py-2 bg-white/10 border border-white/10 backdrop-blur">Human‑centered Change Management</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Testimonials (speech bubbles; no cards) -->
+  <section id="testimonials" class="relative py-24">
+    <div class="mx-auto max-w-7xl px-5">
+      <div class="mb-10">
+        <h2 class="text-3xl md:text-5xl font-bold leading-tight">Leaders on working with us</h2>
+      </div>
+      <div class="grid gap-8 md:grid-cols-3">
+        <figure class="relative bg-gradient-to-br from-ink-800 to-ink-700 rounded-[32px] p-6 border border-white/10 skew-y-1 hover:skew-y-0 transition">
+          <blockquote class="text-white/80">“We cut order‑to‑ship by 31% in 90 days. The team translated ops pain into a roadmap we actually believed in.”</blockquote>
+          <figcaption class="mt-4 text-sm text-white/60">COO, D2C Manufacturer</figcaption>
+        </figure>
+        <figure class="relative bg-gradient-to-br from-ink-800 to-ink-700 rounded-[32px] p-6 border border-white/10 -skew-y-1 hover:skew-y-0 transition">
+          <blockquote class="text-white/80">“Their AI pilot paid for itself in 7 weeks. Forecast errors halved; planners finally trust the system.”</blockquote>
+          <figcaption class="mt-4 text-sm text-white/60">Head of Supply, Retail</figcaption>
+        </figure>
+        <figure class="relative bg-gradient-to-br from-ink-800 to-ink-700 rounded-[32px] p-6 border border-white/10 skew-y-1 hover:skew-y-0 transition">
+          <blockquote class="text-white/80">“Workforce redesign lifted throughput without extra shifts. The change actually stuck.”</blockquote>
+          <figcaption class="mt-4 text-sm text-white/60">Plant Director, Automotive</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- Contact -->
+  <section id="contact" class="relative py-24">
+    <div class="absolute -bottom-24 -left-24 w-[38rem] h-[38rem] rounded-full bg-brand/25 blur-[120px]"></div>
+    <div class="mx-auto max-w-7xl px-5">
+      <div class="grid lg:grid-cols-2 gap-10 items-start">
+        <div>
+          <h2 class="text-3xl md:text-5xl font-bold leading-tight">Let’s design your next operational leap</h2>
+          <p class="mt-3 text-white/70">Share your context. We’ll respond with a short hypothesis and a plan to test it quickly.</p>
+          <ul class="mt-6 space-y-3 text-white/70 text-sm">
+            <li class="flex items-start gap-3"><span class="mt-1 w-1.5 h-1.5 rounded-full bg-brand"></span> 60‑minute discovery to isolate the constraint worth solving</li>
+            <li class="flex items-start gap-3"><span class="mt-1 w-1.5 h-1.5 rounded-full bg-brand"></span> 2‑week pilot with clear pass/fail gates</li>
+            <li class="flex items-start gap-3"><span class="mt-1 w-1.5 h-1.5 rounded-full bg-brand"></span> Scale plan with owner and KPI tree</li>
+          </ul>
+        </div>
+        <form id="contactForm" class="rounded-3xl border border-white/10 p-8 bg-ink-800/60">
+          <div class="grid sm:grid-cols-2 gap-5">
+            <label class="grid gap-2 text-sm">
+              <span class="text-white/70">Name</span>
+              <input name="name" required class="bg-ink-900 border border-white/10 rounded-xl px-4 py-2" placeholder="Your name"/>
+            </label>
+            <label class="grid gap-2 text-sm">
+              <span class="text-white/70">Work Email</span>
+              <input name="email" type="email" required class="bg-ink-900 border border-white/10 rounded-xl px-4 py-2" placeholder="you@company.com"/>
+            </label>
+            <label class="grid gap-2 text-sm sm:col-span-2">
+              <span class="text-white/70">Company</span>
+              <input name="company" class="bg-ink-900 border border-white/10 rounded-xl px-4 py-2" placeholder="Company name"/>
+            </label>
+            <label class="grid gap-2 text-sm sm:col-span-2">
+              <span class="text-white/70">What do you want to improve?</span>
+              <textarea name="message" rows="4" required class="bg-ink-900 border border-white/10 rounded-xl px-4 py-2" placeholder="Ops, supply chain, procurement, workforce, AI..."></textarea>
+            </label>
+          </div>
+          <div class="mt-6 flex items-center gap-4">
+            <button class="magnetic inline-flex items-center gap-2 rounded-full bg-white text-ink-900 px-5 py-3 text-sm font-semibold" type="submit">Request Meeting</button>
+            <span id="formMsg" class="text-sm text-white/70"></span>
+          </div>
+          <p class="mt-3 text-xs text-white/50">This demo form uses client‑side handling. Replace with your backend or Formspree/GA4 events on deploy.</p>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <footer class="border-t border-white/10">
+    <div class="mx-auto max-w-7xl px-5 py-10 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-white/60">
+      <div>&copy; <span id="year"></span> NexOps Consulting</div>
+      <div class="flex items-center gap-6">
+        <a class="hover:text-white" href="#services">Services</a>
+        <a class="hover:text-white" href="#calculators">Calculators</a>
+        <a class="hover:text-white" href="#standout">Why Us</a>
+        <a class="hover:text-white" href="#contact">Contact</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script>
+    // Loader hide
+    window.addEventListener('load', () => setTimeout(() => document.getElementById('loader').classList.add('hidden'), 600));
+
+    // Magnetic buttons micro‑interaction
+    document.querySelectorAll('.magnetic').forEach((btn) => {
+      btn.addEventListener('mousemove', (e) => {
+        const r = btn.getBoundingClientRect();
+        const dx = (e.clientX - (r.left + r.width/2)) * .12;
+        const dy = (e.clientY - (r.top + r.height/2)) * .12;
+        btn.style.setProperty('--tx', dx + 'px');
+        btn.style.setProperty('--ty', dy + 'px');
+      });
+      btn.addEventListener('mouseleave', () => { btn.style.setProperty('--tx','0px'); btn.style.setProperty('--ty','0px'); });
+    });
+
+    // Animated counters when visible
+    const io = new IntersectionObserver((entries)=>{
+      entries.forEach((en)=>{
+        if (en.isIntersecting){
+          const el = en.target; const target = +el.dataset.counter || 0; let cur = 0; const step = Math.max(1, Math.floor(target/80));
+          const tick = () => { cur += step; if (cur > target) cur = target; el.textContent = cur.toLocaleString(); if (cur < target) requestAnimationFrame(tick); };
+          tick(); io.unobserve(el);
+        }
+      })
+    },{ threshold:.4 });
+    document.querySelectorAll('[data-counter]').forEach(el=>io.observe(el));
+
+    // ROI Calculator
+    const $ = (id) => document.getElementById(id);
+    const fmt = (n) => new Intl.NumberFormat('en-IN').format(Math.round(n));
+    let calcRuns = 0, ctaClicks = 0, seconds = 0; const secTimer = setInterval(()=>{ seconds++; $('mSecs').textContent = seconds; pushSpark(seconds); }, 1000);
+
+    function runCalc(){
+      const baseline = +$('baselineCost').value || 0;
+      const improve = (+$('improvement').value || 0) / 100;
+      const project = +$('projectCost').value || 0;
+      const months = +$('months').value || 1;
+      const monthlySavings = baseline * improve;
+      const annualRoi = project ? ((monthlySavings*12 - project) / project) * 100 : 0;
+      const payback = monthlySavings ? (project / monthlySavings) : 0;
+      $('monthlySavings').textContent = '₹ ' + fmt(monthlySavings);
+      $('annualRoi').textContent = fmt(annualRoi.toFixed(0)) + '%';
+      $('payback').textContent = payback ? payback.toFixed(1) : '—';
+      const p = Math.max(0, Math.min(100, (annualRoi/2))); // clamp for gauge feel
+      $('roiGauge').style.setProperty('--p', p);
+      $('gaugeLabel').textContent = Math.round(p) + '%';
+      calcRuns++; $('mCalcs').textContent = calcRuns;
+    }
+    $('calcBtn').addEventListener('click', runCalc);
+
+    // Cycle‑time bars
+    function updateCT(){
+      const cur = +$('ctCurrent').value || 0; const tar = +$('ctTarget').value || 0;
+      const max = Math.max(cur, tar, 1);
+      $('barCurrent').style.height = (cur/max*100) + '%';
+      $('barTarget').style.height = (tar/max*100) + '%';
+      const red = cur && tar ? ((cur - tar)/cur*100) : 0;
+      $('ctDelta').textContent = (red>0?'-':'' ) + red.toFixed(1) + '%';
+      calcRuns++; $('mCalcs').textContent = calcRuns;
+    }
+    $('ctBtn').addEventListener('click', updateCT);
+    updateCT();
+
+    // Contact form demo
+    $('contactForm').addEventListener('submit', (e)=>{
+      e.preventDefault(); $('formMsg').textContent = 'Thanks! We\'ll reach out within 1 business day.'; ctaClicks++; $('mCtaClicks').textContent = ctaClicks; });
+
+    // Year
+    $('year').textContent = new Date().getFullYear();
+
+    // Three.js Globe (lightweight: wireframe sphere + points)
+    const canvas = $('globe');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true });
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+    const globeGroup = new THREE.Group(); scene.add(globeGroup);
+
+    function resize(){
+      const w = canvas.clientWidth; const h = canvas.clientHeight; renderer.setSize(w,h,false); camera.aspect = w/h; camera.updateProjectionMatrix();
+      camera.position.set(0,0,5.2);
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    const geo = new THREE.SphereGeometry(2, 48, 48);
+    const mat = new THREE.MeshBasicMaterial({ color: 0x3f43a6, wireframe:true, transparent:true, opacity:.35 });
+    const mesh = new THREE.Mesh(geo, mat); globeGroup.add(mesh);
+
+    // random nodes
+    const dotsGeo = new THREE.BufferGeometry();
+    const N = 400; const positions = new Float32Array(N*3);
+    for(let i=0;i<N;i++){
+      const phi = Math.acos(2*Math.random()-1), theta = Math.random()*Math.PI*2;
+      const r = 2; positions[i*3+0] = r*Math.sin(phi)*Math.cos(theta);
+      positions[i*3+1] = r*Math.cos(phi);
+      positions[i*3+2] = r*Math.sin(phi)*Math.sin(theta);
+    }
+    dotsGeo.setAttribute('position', new THREE.BufferAttribute(positions,3));
+    const dotsMat = new THREE.PointsMaterial({ color: 0x7C4DFF, size: 0.02, transparent:true, opacity:.9 });
+    const dots = new THREE.Points(dotsGeo, dotsMat); globeGroup.add(dots);
+
+    // soft glow
+    const glowGeo = new THREE.SphereGeometry(2.05, 32, 32);
+    const glowMat = new THREE.MeshBasicMaterial({ color: 0x7C4DFF, transparent:true, opacity:.08 });
+    globeGroup.add(new THREE.Mesh(glowGeo, glowMat));
+
+    // Animate
+    function tick(){ globeGroup.rotation.y += 0.0025; renderer.render(scene, camera); requestAnimationFrame(tick); }
+    tick();
+
+    // Simple sparkline
+    const spark = $('spark'); const sctx = spark.getContext('2d'); const sp = [];
+    function pushSpark(v){ sp.push(v); if (sp.length>48) sp.shift(); drawSpark(); }
+    function drawSpark(){
+      const w = spark.width, h = spark.height; sctx.clearRect(0,0,w,h);
+      sctx.strokeStyle = 'rgba(255,255,255,.75)'; sctx.lineWidth = 2; sctx.beginPath();
+      sp.forEach((val,i)=>{ const x = i*(w/(sp.length-1||1)); const y = h - (val%(h-8)) - 4; if(i===0) sctx.moveTo(x,y); else sctx.lineTo(x,y); });
+      sctx.stroke();
+    }
+
+    // Google Analytics placeholder (uncomment on deploy)
+    // <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXX"></script>
+    // window.dataLayer = window.dataLayer || []; function gtag(){dataLayer.push(arguments);} gtag('js', new Date()); gtag('config', 'G-XXXX');
+  </script>
+</body>
+</html>
